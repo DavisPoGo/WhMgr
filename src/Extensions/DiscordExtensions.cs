@@ -71,24 +71,24 @@
             return messagesSent;
         }
 
-        public static async Task<DiscordMessage> SendDirectMessage(this DiscordClient client, DiscordUser user, DiscordEmbed embed)
+        public static async Task<DiscordMessage> SendDirectMessage(this DiscordMember user, DiscordEmbed embed)
         {
             if (embed == null)
                 return null;
 
-            return await client.SendDirectMessage(user, string.Empty, embed);
+            return await user.SendDirectMessage(string.Empty, embed);
         }
 
-        public static async Task<DiscordMessage> SendDirectMessage(this DiscordClient client, DiscordUser user, string message, DiscordEmbed embed)
+        public static async Task<DiscordMessage> SendDirectMessage(this DiscordMember user, string message, DiscordEmbed embed)
         {
             try
             {
-                var dm = await client.CreateDmAsync(user);
-                if (dm != null)
-                {
-                    var msg = await dm.SendMessageAsync(message, false, embed);
+                //var dm = await client.CreateDmAsync(user);
+                //if (dm != null)
+                //{
+                    var msg = await user.SendMessageAsync(message, false, embed);
                     return msg;
-                }
+                //}
             }
             catch (Exception)
             {
@@ -117,7 +117,7 @@
             DiscordMember member = null;
             try
             {
-                member = members?.FirstOrDefault(x => x.Id == id);
+                member = members?.FirstOrDefault(x => x.Key == id).Value;
             }
             catch { }
             if (member == null)
@@ -142,7 +142,7 @@
                 await ctx.TriggerTypingAsync();
             }
 
-            var lang = ctx.Dependencies?.GetDependency<Translator>();
+            var lang = (Translator)ctx.Services.GetService(typeof(Translator));
             var message = lang != null ? 
                     lang.Translate("DONATE_MESSAGE").FormatText(ctx.User.Username) :
                     $"{ctx.User.Username} This feature is only available to supporters, please donate to unlock this feature and more.\r\n\r\n" +
@@ -249,7 +249,7 @@
                 return false;
 
             var guild = client.Guilds[guildId];
-            var member = guild.Members.FirstOrDefault(x => x.Id == userId);
+            var member = guild.Members.FirstOrDefault(x => x.Key == userId).Value;
             if (member == null)
             {
                 _logger.Error($"Failed to get user with id {userId}.");
@@ -314,9 +314,11 @@
         {
             foreach (var guild in client.Guilds)
             {
-                var role = guild.Value.Roles.FirstOrDefault(x => string.Compare(x.Name, roleName, true) == 0);
+                var role = guild.Value.Roles.FirstOrDefault(x => string.Compare(x.Value.Name, roleName, true) == 0).Value;
                 if (role != null)
+                {
                     return role;
+                }
             }
 
             return null;
@@ -382,7 +384,7 @@
 
         public static ulong? GetEmojiId(this DiscordGuild guild, string emojiName)
         {
-            return guild.Emojis.FirstOrDefault(x => string.Compare(x.Name, emojiName, true) == 0)?.Id;
+            return guild.Emojis.FirstOrDefault(x => string.Compare(x.Value.Name, emojiName, true) == 0).Key;
         }
 
         public static string GetEmoji(this string emojiName)
@@ -399,7 +401,7 @@
         public static async Task<bool> Confirm(this CommandContext ctx, string message)
         {
             await ctx.RespondEmbed(message);
-            var interactivity = ctx.Client.GetModule<InteractivityModule>();
+            var interactivity = (InteractivityExtension)ctx.Services.GetService(typeof(InteractivityExtension));//ctx.Client.GetModule<InteractivityModule>();
             if (interactivity == null)
             {
                 _logger.Error("Interactivity model failed to load!");
@@ -412,7 +414,7 @@
                 && Regex.IsMatch(x.Content, ConfirmRegex), 
                 TimeSpan.FromMinutes(2));
 
-            return Regex.IsMatch(m.Message.Content, YesRegex);
+            return Regex.IsMatch(m.Result.Content, YesRegex);
         }
 
         #region Colors

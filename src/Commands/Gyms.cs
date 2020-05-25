@@ -22,7 +22,7 @@
         Hidden,
         RequirePermissions(Permissions.KickMembers)
     ]
-    public class Gyms
+    public class Gyms : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("GYMS");
         private readonly Dependencies _dep;

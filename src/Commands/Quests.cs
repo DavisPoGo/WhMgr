@@ -10,7 +10,7 @@
     using WhMgr.Diagnostics;
     using WhMgr.Extensions;
 
-    public class Quests
+    public class Quests : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("QUESTS");
         private readonly Dependencies _dep;

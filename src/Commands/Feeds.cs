@@ -13,7 +13,7 @@
     using WhMgr.Diagnostics;
     using WhMgr.Extensions;
 
-    public class Feeds
+    public class Feeds : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("FEEDS");
 
@@ -93,8 +93,8 @@
             var assigned = new List<string>();
             var alreadyAssigned = new List<string>();
 
-            try
-            {
+            //try
+            //{
                 var cityNames = cityName.Replace(" ", "").Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
                 var cityRoles = server.CityRoles.Select(x => x.ToLower());
                 foreach (var city in cityNames)
@@ -152,11 +152,11 @@
                         ? _dep.Language.Translate("FEEDS_UNASSIGNED_ROLES").FormatText(ctx.User.Username, string.Join("**, **", alreadyAssigned))
                         : string.Empty)
                 );
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex);
-            }
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.Error(ex);
+            //}
         }
 
         [
@@ -186,8 +186,8 @@
             var unassigned = new List<string>();
             var alreadyUnassigned = new List<string>();
 
-            try
-            {
+            //try
+            //{
                 var cityNames = cityName.Replace(" ", "").Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
                 var cityRoles = server.CityRoles;
                 foreach (var city in cityNames)
@@ -237,11 +237,11 @@
                         ? _dep.Language.Translate("FEEDS_UNASSIGNED_ROLES_ALREADY").FormatText(ctx.User.Username, string.Join("**, **", alreadyUnassigned))
                         : string.Empty)
                 );
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex);
-            }
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.Error(ex);
+            //}
         }
 
         private async Task AssignAllDefaultFeedRoles(CommandContext ctx)
@@ -267,6 +267,7 @@
                 {
                     _logger.Error($"Failed to assign role {cityRole.Name} to user {ctx.User.Username} ({ctx.User.Id}).");
                 }
+                System.Threading.Thread.Sleep(500);
             }
 
             await ctx.RespondEmbed(_dep.Language.Translate("FEEDS_ASSIGNED_ALL_ROLES").FormatText(ctx.User.Username));
@@ -295,6 +296,7 @@
                 {
                     _logger.Error($"Failed to remove role {cityRole.Name} from user {ctx.User.Username} ({ctx.User.Id}).");
                 }
+                System.Threading.Thread.Sleep(500);
             }
 
             await ctx.RespondEmbed(_dep.Language.Translate("FEEDS_UNASSIGNED_ALL_ROLES").FormatText(ctx.User.Username));

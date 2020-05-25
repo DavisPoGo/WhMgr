@@ -20,7 +20,7 @@
         RequireOwner,
         Hidden
     ]
-    public class Owner
+    public class Owner : BaseCommandModule
     {
         const string PokemonTrainerClub = "https://sso.pokemon.com/sso/login";
         const string NianticLabs = "https://pgorelease.nianticlabs.com/plfe/version";
@@ -99,8 +99,12 @@
             await ctx.TriggerTypingAsync();
 
             // get the command service, we need this for sudo purposes
-            var cmds = ctx.CommandsNext;
-            await cmds.SudoAsync(member, ctx.Channel, command);
+            //var cmds = ctx.CommandsNext;
+            //await cmds.SudoAsync(member, ctx.Channel, command);
+
+            var cmd = ctx.CommandsNext.FindCommand(command, out var args);
+            var fctx = ctx.CommandsNext.CreateFakeContext(member, ctx.Channel, command, ctx.Prefix, cmd, args);
+            await ctx.CommandsNext.ExecuteCommandAsync(fctx).ConfigureAwait(false);
         }
 
         /*

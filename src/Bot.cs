@@ -24,6 +24,9 @@
     using DSharpPlus.EventArgs;
     using DSharpPlus.CommandsNext;
     using DSharpPlus.Interactivity;
+    using System.Reflection;
+    using Microsoft.Extensions.DependencyInjection;
+    using DSharpPlus.CommandsNext.Exceptions;
 
     //TODO: User subscriptions and Pokemon, Raid, and Quest alarm statistics by day. date/pokemonId/count
     //TODO: Reload config on change
@@ -78,12 +81,15 @@
                 var server = _whConfig.Servers[guildId];
                 var client = new DiscordClient(new DiscordConfiguration
                 {
-                    AutomaticGuildSync = true,
+                    //AutomaticGuildSync = true,
                     AutoReconnect = true,
-                    EnableCompression = true,
+                    //GatewayCompressionLevel = GatewayCompressionLevel.Payload,
                     Token = server.Token,
                     TokenType = TokenType.Bot,
-                    UseInternalLogHandler = true
+                    UseInternalLogHandler = false,
+                    DateTimeFormat = "dd-MM-yyyy HH:mm:ss zzz",
+                    LargeThreshold = 250,
+                    MessageCacheSize = 2048
                 });
 
                 // If you are on Windows 7 and using .NETFX, install 
@@ -110,39 +116,33 @@
                 client.ClientErrored += Client_ClientErrored;
                 client.DebugLogger.LogMessageReceived += DebugLogger_LogMessageReceived;
 
-                var interactivity = client.UseInteractivity
-                (
-                    new InteractivityConfiguration
-                    {
-                    // default pagination behaviour to just ignore the reactions
-                    PaginationBehaviour = TimeoutBehaviour.Ignore,
-
-                    // default pagination timeout to 5 minutes
-                    PaginationTimeout = TimeSpan.FromMinutes(5), //TODO: Set prod
-
-                    // default timeout for other actions to 2 minutes
-                    Timeout = TimeSpan.FromMinutes(2) //TODO: Set prod
-                }
-                );
-
-                DependencyCollection dep;
-                using (var d = new DependencyCollectionBuilder())
+                // interactivity service
+                var icfg = new InteractivityConfiguration()
                 {
-                    d.AddInstance(new Dependencies(interactivity, _whm, _subProcessor, _whConfig, _lang, new StripeService(_whConfig.StripeApiKey)));
-                    dep = d.Build();
-                }
+                    Timeout = TimeSpan.FromMinutes(2)
+                };
+
+                var interactivity = client.UseInteractivity(icfg);
+
+                // build a dependency collection for commandsnext
+                var depco = new ServiceCollection();
+                Dependencies dep = new Dependencies(interactivity, _whm, _subProcessor, _whConfig, _lang, new StripeService(_whConfig.StripeApiKey));
+                depco.AddSingleton(dep);
 
                 var commands = client.UseCommandsNext
                 (
                     new CommandsNextConfiguration
                     {
-                        StringPrefix = server.CommandPrefix?.ToString(),
+                        StringPrefixes = new string[] { server.CommandPrefix?.ToString() },
                         EnableDms = true,
                         EnableMentionPrefix = string.IsNullOrEmpty(server.CommandPrefix),
-                        EnableDefaultHelp = false,
+                        EnableDefaultHelp = true,
                         CaseSensitive = false,
                         IgnoreExtraArguments = true,
-                        Dependencies = dep
+                        Services = depco.BuildServiceProvider(true),
+                        //IgnoreExtraArguments = false,
+                        UseDefaultCommandHandler = true
+                        //Dependencies = dep
                     }
                 );
                 commands.CommandExecuted += Commands_CommandExecuted;
@@ -154,6 +154,8 @@
                 commands.RegisterCommands<Gyms>();
                 commands.RegisterCommands<Quests>();
                 commands.RegisterCommands<Settings>();
+                //commands.RegisterCommands(typeof(Bot).GetTypeInfo().Assembly);
+                commands.SetHelpFormatter<TestHelpFormatter>();
                 if (server.EnableSubscriptions)
                 {
                     commands.RegisterCommands<Notifications>();
@@ -256,7 +258,7 @@
             _logger.Info($"[DISCORD] ----- Current Application");
             _logger.Info($"[DISCORD] Name: {e.Client.CurrentApplication.Name}");
             _logger.Info($"[DISCORD] Description: {e.Client.CurrentApplication.Description}");
-            _logger.Info($"[DISCORD] Owner: {e.Client.CurrentApplication.Owner.Username}#{e.Client.CurrentApplication.Owner.Discriminator}");
+            _logger.Info($"[DISCORD] Owner: {e.Client.CurrentApplication.Owners?.FirstOrDefault()?.Username}#{e.Client.CurrentApplication.Owners?.FirstOrDefault()?.Discriminator}");
             _logger.Info($"[DISCORD] ----- Current User");
             _logger.Info($"[DISCORD] Id: {e.Client.CurrentUser.Id}");
             _logger.Info($"[DISCORD] Name: {e.Client.CurrentUser.Username}#{e.Client.CurrentUser.Discriminator}");
@@ -268,7 +270,9 @@
                 _logger.Error($"DiscordClient is null, Unable to update status.");
                 return;
             }
-            await client.UpdateStatusAsync(new DiscordGame($"v{Strings.Version}"), UserStatus.Online);
+            await client.UpdateStatusAsync(new DiscordActivity($"v{Strings.Version}", DSharpPlus.Entities.ActivityType.Playing), UserStatus.Online);
+
+            await client.InitializeAsync();
         }
 
         private async Task Client_GuildAvailable(GuildCreateEventArgs e)
@@ -307,6 +311,7 @@
 
         private async Task Commands_CommandErrored(CommandErrorEventArgs e)
         {
+            /*
             e.Context.Client.DebugLogger.LogMessage(LogLevel.Error, Strings.BotName, $"{e.Context.User.Username} tried executing '{e.Command?.QualifiedName ?? e.Context.Message.Content}' but it errored: {e.Exception.GetType()}: {e.Exception.Message ?? "<no message>"}", DateTime.Now);
 
             // let's check if the error is a result of lack of required permissions
@@ -330,13 +335,13 @@
                 var emoji = DiscordEmoji.FromName(e.Context.Client, ":x:");
 
                 var prefix = _whConfig.Servers.ContainsKey(e.Context.Guild.Id) ? _whConfig.Servers[e.Context.Guild.Id].CommandPrefix : "!";
-                var example = $"Command Example: ```{prefix}{e.Command.Name} {string.Join(" ", e.Command.Arguments.Select(x => x.IsOptional ? $"[{x.Name}]" : x.Name))}```\r\n*Parameters in brackets are optional.*";
+                var example = $"Command Example: ```{prefix}{e.Command.Name} {string.Join(" ", e.Command.Overloads?.FirstOrDefault()?.Arguments.Select(x => x.IsOptional ? $"[{x.Name}]" : x.Name))}```\r\n*Parameters in brackets are optional.*";
 
                 // let's wrap the response into an embed
                 var embed = new DiscordEmbedBuilder
                 {
                     Title = $"{emoji} Invalid Argument(s)",
-                    Description = $"{string.Join(Environment.NewLine, e.Command.Arguments.Select(x => $"Parameter **{x.Name}** expects type **{x.Type}.**"))}.\r\n\r\n{example}",
+                    Description = $"{string.Join(Environment.NewLine, e.Command.Overloads?.FirstOrDefault()?.Arguments.Select(x => $"Parameter **{x.Name}** expects type **{x.Type}.**"))}.\r\n\r\n{example}",
                     Color = new DiscordColor(0xFF0000) // red
                 };
                 await e.Context.RespondAsync(embed: embed);
@@ -349,60 +354,78 @@
             {
                 _logger.Error($"User {e.Context.User.Username} tried executing command {e.Command?.Name} and unknown error occurred.\r\n: {e.Exception.ToString()}");
             }
+            */
+            if (e.Exception is CommandNotFoundException && (e.Command == null || e.Command.QualifiedName != "help"))
+                return;
+
+            e.Context.Client.DebugLogger.LogMessage(LogLevel.Error, "DSP Test", $"An exception occured during {e.Context.User.Username}'s invocation of '{e.Context.Command.QualifiedName}': {e.Exception.GetType()}", DateTime.Now.Date, e.Exception);
+
+            var exs = new List<Exception>();
+            if (e.Exception is AggregateException ae)
+                exs.AddRange(ae.InnerExceptions);
+            else
+                exs.Add(e.Exception);
+
+            foreach (var ex in exs)
+            {
+                if (ex is CommandNotFoundException && (e.Command == null || e.Command.QualifiedName != "help"))
+                    return;
+
+                var embed = new DiscordEmbedBuilder
+                {
+                    Color = new DiscordColor("#FF0000"),
+                    Title = "An exception occured when executing a command",
+                    Description = $"`{e.Exception.GetType()}` occured when executing `{e.Command.QualifiedName}`.",
+                    Timestamp = DateTime.UtcNow
+                };
+                embed.WithFooter(e.Context.Client.CurrentUser.Username, e.Context.Client.CurrentUser.AvatarUrl)
+                    .AddField("Message", ex.Message);
+                await e.Context.RespondAsync(embed: embed.Build());
+            }
         }
 
         private void DebugLogger_LogMessageReceived(object sender, DebugLogMessageEventArgs e)
         {
-            if (e.Application == "REST")
-            {
-                _logger.Error("[DISCORD] RATE LIMITED-----------------");
-                return;
-            }
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write("[{0:yyyy-MM-dd HH:mm:ss zzz}] ", e.Timestamp.ToLocalTime());
 
-            //Color
-            ConsoleColor color;
+            var tag = e.Application;
+            if (tag.Length > 12)
+                tag = tag.Substring(0, 12);
+            if (tag.Length < 12)
+                tag = tag.PadLeft(12, ' ');
+            Console.Write("[{0}] ", tag);
+
+            //Console.ForegroundColor = ConsoleColor.Yellow;
+            //Console.Write("[{0}] ", string.Concat("SHARD ", this.Discord.ShardId.ToString("00")));
+
             switch (e.Level)
             {
-                case LogLevel.Error: color = ConsoleColor.DarkRed; break;
-                case LogLevel.Warning: color = ConsoleColor.Yellow; break;
-                case LogLevel.Info: color = ConsoleColor.White; break;
-                case LogLevel.Critical: color = ConsoleColor.Red; break;
-                case LogLevel.Debug: default: color = ConsoleColor.DarkGray; break;
+                case LogLevel.Critical:
+                case LogLevel.Error:
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    break;
+
+                case LogLevel.Warning:
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    break;
+
+                case LogLevel.Info:
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    break;
+
+                case LogLevel.Debug:
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    break;
+
+                default:
+                    Console.ForegroundColor = ConsoleColor.DarkGreen;
+                    break;
             }
+            Console.Write("[{0}] ", e.Level.ToString().PadLeft(8));
 
-            //Source
-            var sourceName = e.Application;
-
-            //Text
-            var text = e.Message;
-
-            //Build message
-            var builder = new System.Text.StringBuilder(text.Length + (sourceName?.Length ?? 0) + 5);
-            if (sourceName != null)
-            {
-                builder.Append('[');
-                builder.Append(sourceName);
-                builder.Append("] ");
-            }
-
-            for (var i = 0; i < text.Length; i++)
-            {
-                //Strip control chars
-                var c = text[i];
-                if (!char.IsControl(c))
-                    builder.Append(c);
-            }
-
-            if (text != null)
-            {
-                builder.Append(": ");
-                builder.Append(text);
-            }
-
-            text = builder.ToString();
-            Console.ForegroundColor = color;
-            Console.WriteLine(text);
-            Console.ResetColor();
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(e.Message);
         }
 
         #endregion
@@ -971,14 +994,14 @@
                     var client = _servers[guildId];
                     if (client != null)
                     {
-                        var owner = await client.GetUserAsync(server.OwnerId);
+                        var owner = await client.GetMemberById(guildId, server.OwnerId);
                         if (owner == null)
                         {
                             _logger.Warn($"Unable to get owner from id {server.OwnerId}.");
                             return;
                         }
 
-                        await client.SendDirectMessage(owner, _lang.Translate("BOT_CRASH_MESSAGE"), null);
+                        await owner.SendDirectMessage(_lang.Translate("BOT_CRASH_MESSAGE"), null);
                     }
                 }
             }

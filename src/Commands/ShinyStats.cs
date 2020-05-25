@@ -17,7 +17,7 @@
     using WhMgr.Diagnostics;
     using WhMgr.Extensions;
 
-    public class ShinyStats
+    public class ShinyStats : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("SHINY_STATS");
         private readonly Dependencies _dep;

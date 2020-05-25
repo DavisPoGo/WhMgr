@@ -21,7 +21,7 @@
     using WhMgr.Net.Models;
     using WhMgr.Utilities;
 
-    public class Notifications
+    public class Notifications : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("NOTIFICATIONS");
 
@@ -46,7 +46,7 @@
 
             if (string.IsNullOrEmpty(mention))
             {
-                await SendUserSubscriptionSettings(ctx.Client, ctx.User, ctx.User, ctx.Guild.Id);
+                await SendUserSubscriptionSettings(ctx.Client, ctx.Member, ctx.User, ctx.Guild.Id);
                 return;
             }
 
@@ -72,7 +72,7 @@
 
             _dep.SubscriptionProcessor.Manager.ReloadSubscriptions();
 
-            await SendUserSubscriptionSettings(ctx.Client, ctx.User, user, ctx.Guild.Id);
+            await SendUserSubscriptionSettings(ctx.Client, ctx.Member, user, ctx.Guild.Id);
         }
 
         [
@@ -151,7 +151,7 @@
                 return;
 
             var message = BuildExpirationMessage(guildId, ctx.User);
-            await ctx.Client.SendDirectMessage(ctx.User, message);
+            await ctx.Member.SendDirectMessage(message);
         }
 
         [
@@ -174,7 +174,7 @@
             var guildId = ctx.Guild?.Id ?? _dep.WhConfig.Servers[ctx.Guild.Id].GuildId;
             var user = await ctx.Client.GetUserAsync(realUserId);
             var message = BuildExpirationMessage(guildId, user);
-            await ctx.Client.SendDirectMessage(ctx.User, message);
+            await ctx.Member.SendDirectMessage(message);
         }
 
         #endregion
@@ -1280,10 +1280,10 @@
 
             await ctx.RespondEmbed(_dep.Language.Translate("NOTIFY_IMPORT_UPLOAD_FILE").FormatText(ctx.User.Username));
             var xc = await _dep.Interactivity.WaitForMessageAsync(x => x.Author.Id == ctx.User.Id && x.Attachments.Count > 0, TimeSpan.FromSeconds(180));
-            if (xc == null)
+            if (xc.Result == null)
                 return;
 
-            var attachment = xc.Message.Attachments[0];
+            var attachment = xc.Result.Attachments[0];
             if (attachment == null)
                 return;
 
@@ -1468,7 +1468,7 @@
 
         #region Private Methods
 
-        private async Task SendUserSubscriptionSettings(DiscordClient client, DiscordUser receiver, DiscordUser user, ulong guildId)
+        private async Task SendUserSubscriptionSettings(DiscordClient client, DiscordMember receiver, DiscordUser user, ulong guildId)
         {
             var messages = await BuildUserSubscriptionSettings(client, user, guildId);
             for (var i = 0; i < messages.Count; i++)
@@ -1485,7 +1485,7 @@
                         Text = $"{Strings.Creator} | {DateTime.Now}"
                     }
                 };
-                await client.SendDirectMessage(receiver, eb.Build());
+                await receiver.SendDirectMessage(eb.Build());
             }
         }
 

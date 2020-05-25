@@ -20,7 +20,7 @@
         Hidden,
         RequirePermissions(Permissions.KickMembers)
     ]
-    public class Settings
+    public class Settings : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("SETTINGS");
 
@@ -242,7 +242,7 @@
 
                 var rolesAdded = new List<string>();
                 var rolesFailed = new List<string>();
-                var guildRoleNames = ctx.Guild.Roles.Select(x => x.Name.ToLower()).ToList();
+                var guildRoleNames = ctx.Guild.Roles.Select(x => x.Value.Name.ToLower()).ToList();
                 var split = roleNames.Split(',');
                 for (var i = 0; i < split.Length; i++)
                 {

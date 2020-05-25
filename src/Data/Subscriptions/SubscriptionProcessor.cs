@@ -646,9 +646,7 @@
         {
             _logger.Trace($"SubscriptionProcessor::ProcessQueue");
 
-#pragma warning disable RECS0165 // Asynchronous methods should return a Task instead of void
             new Thread(async () =>
-#pragma warning restore RECS0165 // Asynchronous methods should return a Task instead of void
             {
                 while (true)
                 {
@@ -690,7 +688,7 @@
                             if (!_servers.ContainsKey(item.Subscription.GuildId))
                                 continue;
 
-                            await _servers[item.Subscription.GuildId].SendDirectMessage(item.Member, string.Empty, eb.Build());
+                            await item.Member.SendDirectMessage(string.Empty, eb.Build());
                             item.Subscription.RateLimitNotificationSent = true;
                         }
                         continue;
@@ -705,7 +703,7 @@
                     }
 
                     var client = _servers[item.Subscription.GuildId];
-                    await client.SendDirectMessage(item.Member, item.Embed);
+                    await item.Member.SendDirectMessage(item.Embed);
                     _logger.Info($"[WEBHOOK] Notified user {item.Member.Username} of {item.Description}.");
                     Thread.Sleep(10);
                 }

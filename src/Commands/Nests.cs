@@ -20,7 +20,7 @@
     using WhMgr.Net.Models;
     using WhMgr.Utilities;
 
-    public class Nests
+    public class Nests : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("NESTS");
 

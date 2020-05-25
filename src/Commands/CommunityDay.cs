@@ -21,7 +21,7 @@
         Hidden,
         RequirePermissions(Permissions.KickMembers)
     ]
-    public class CommunityDay
+    public class CommunityDay : BaseCommandModule
     {
         private static readonly IEventLogger _logger = EventLogger.GetLogger("COMMUNITYDAY");
 
